@@ -12,10 +12,10 @@ export default function Home() {
   const [launched, setLaunched] = useState(false);
   const [rocketColor, setRocketColor] = useState("#ff0000");
   const [thrust, setThrust] = useState(0.05); // Default thrust strength
+  const [showFlame, setShowFlame] = useState(false); //use of fire
+  const [rocketPosition, setRocketPosition] = useState({ x: 0, y: 0 }); //use of rocket location
 
-//  function setRocketColor(color: string): string{
-//     return color;
-//   }
+
   //tint image
   const tintImage = async (imagePath: string, hexColor: string): Promise<string> => {
     const img = document.createElement("img"); 
@@ -103,6 +103,13 @@ export default function Home() {
     (window as any).ground = ground;
     (window as any).engine = engine;
 
+    Matter.Events.on(engine, "afterUpdate", () => {
+      const rocket = (window as any).rocket;
+      if (rocket) {
+        setRocketPosition({ x: rocket.position.x, y: rocket.position.y });
+      }
+    });
+
   };
 
   setup();
@@ -123,6 +130,11 @@ export default function Home() {
     const rocket = (window as any).rocket;
     const ground = (window as any).ground;
     const engine = (window as any).engine;
+
+    setShowFlame(true);
+
+    // Turn it off after ~500ms (fake burn duration)
+    setTimeout(() => setShowFlame(false), 500);
     if (!launched) {
       Matter.Body.applyForce(rocket, rocket.position, {
         x: 0,
@@ -175,6 +187,21 @@ export default function Home() {
             {thrust.toFixed(2)} N
           </span>
       <div ref={sceneRef} className="border border-gray-400 rounded" />
+          {showFlame && (
+      <img
+        src="flame.png"
+        alt="flame"
+        style={{
+          position: "absolute",
+          left: rocketPosition.x + 535,
+          top: rocketPosition.y + 400,
+          width: 30,
+          height: 50,
+          pointerEvents: "none",
+          zIndex: 10,
+        }}
+      />
+    )}
     </div>
   );
 }

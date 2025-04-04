@@ -11,6 +11,7 @@ export default function Home() {
   const sceneRef = useRef<HTMLDivElement>(null);
   const [launched, setLaunched] = useState(false);
   const [rocketColor, setRocketColor] = useState("#ff0000");
+  const [thrust, setThrust] = useState(0.05); // Default thrust strength
 
 //  function setRocketColor(color: string): string{
 //     return color;
@@ -125,7 +126,7 @@ export default function Home() {
     if (!launched) {
       Matter.Body.applyForce(rocket, rocket.position, {
         x: 0,
-        y: -0.1
+        y: -thrust
       });
       setLaunched(true);
       if(Matter.Collision.collides(rocket, ground) != null){
@@ -158,6 +159,21 @@ export default function Home() {
             onChange={(e) => setRocketColor(e.target.value)}
             className="mb-4 w-16 h-10 p-1 border border-gray-300 rounded"
           />
+          <label className="mb-2 text-sm font-medium text-gray-700">
+            Adjust Thrust:
+          </label>
+          <input
+            type="range"
+            min="0.01"
+            max="0.2"
+            step="0.01"
+            value={thrust}
+            onChange={(e) => setThrust(parseFloat(e.target.value))}
+            className="mb-4 w-64"
+          />
+          <span className="text-sm text-gray-600 mb-4">
+            {thrust.toFixed(2)} N
+          </span>
       <div ref={sceneRef} className="border border-gray-400 rounded" />
     </div>
   );

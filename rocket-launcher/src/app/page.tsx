@@ -3,20 +3,8 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import Matter from "matter-js";
 import { collectRoutesUsingEdgeRuntime } from "next/dist/build/utils";
+import { PHYSICS_CONSTANTS } from "../app/physics";
 
-// function calculateDragForce({
-//   velocity,
-//   airDensity = 0.225,     // kg/m³
-//   dragCoefficient = 0.75, // rocket shape
-//   area = 0.03             // m² (adjust to match rocket width)
-// }: {
-//   velocity: number;
-//   airDensity?: number;
-//   dragCoefficient?: number;
-//   area?: number;
-// }) {
-//   return 0.5 * airDensity * velocity ** 2 * dragCoefficient * area;
-// }
 
 
 export default function Home() {
@@ -29,6 +17,7 @@ export default function Home() {
   const [mass, setMass] = useState(5); // default in kilograms
   const [countdown, setCountdown] = useState<number | null>(null);
   const [reachedSpace, setReachedSpace] = useState(false);
+  const isThrusting = useRef(false);
 
 
   //tint image
@@ -68,7 +57,7 @@ export default function Home() {
         },
       },
     });
-    Matter.Body.setMass(rocket, mass);
+    Matter.Body.setMass(rocket, PHYSICS_CONSTANTS.mass);
 
     return rocket;
   };
@@ -78,7 +67,7 @@ export default function Home() {
 
   let engine: Matter.Engine;
   let render: Matter.Render;
-
+  
   useEffect(() => {
     const setup = async () => {
       engine = Matter.Engine.create();
@@ -94,7 +83,7 @@ export default function Home() {
 
       const rocket = await createRocket(400, 500, rocketColor, mass);
    
-
+      engine.gravity.y = PHYSICS_CONSTANTS.gravity;
     const ground = Matter.Bodies.rectangle(400, 590, 810, 20, {
       isStatic: true,
       render: {
@@ -133,31 +122,24 @@ export default function Home() {
       });
     });
 
-      Matter.Events.on(engine, "afterUpdate", () => {
-        const rocket = (window as any).rocket;
-        
-      
-        if (rocket) {
-          // Get vertical velocity (we only care about y for now)
-          // const velocityY = rocket.velocity.y;
-      
-          // // Calculate drag force (same direction as velocity, opposes motion)
-          // const drag = calculateDragForce({ velocity: Math.abs(velocityY) });
-      
-          // const dragForce = {
-          //   x: 0,
-          //   y: -Math.sign(velocityY) * drag, // Oppose vertical motion
-          // };
-      
-          // Matter.Body.applyForce(rocket, rocket.position, dragForce);
-      
-          // Update position state if needed for visuals
-          setRocketPosition({ x: rocket.position.x, y: rocket.position.y });
-          
-          // console.log("Drag force:", drag.toFixed(4), "N");
-        }
-      });
+    Matter.Events.on(engine, "afterUpdate", () => {
+      const rocket = (window as any).rocket;
     
+      if (rocket.velocity.y < -10) {
+        Matter.Body.setVelocity(rocket, { x: rocket.velocity.x, y: -10 });
+      }
+
+      if (rocket) {
+        setRocketPosition({ x: rocket.position.x, y: rocket.position.y });
+    
+        if (isThrusting.current) {
+          Matter.Body.applyForce(rocket, rocket.position, {
+            x: 0,
+            y: -PHYSICS_CONSTANTS.thrust / PHYSICS_CONSTANTS.mass / 60 // divide for smoother effect
+          });
+        }
+      }
+    });
 
   };
 
@@ -177,49 +159,41 @@ export default function Home() {
 
   const resetSimulation = () => {
     setReachedSpace(false);
+    setLaunched(false);
+    const rocket = (window as any).rocket;
+    const x = 400;
+    const y = 400;
+    Matter.Body.setPosition(rocket, { x, y });
+  Matter.Body.setVelocity(rocket, { x: 0, y: 0 });
+  Matter.Body.setAngle(rocket, 0);
+  Matter.Body.setAngularVelocity(rocket, 0);
     // reset rocket position, etc.
   };
 
   const handleLaunch = () => {
-    if (launched || countdown !== null) return; // prevent double clicking
-
+    if (launched || countdown !== null) return;
+  
     let seconds = 5;
     setCountdown(seconds);
-
-
-    const rocket = (window as any).rocket;
-    const ground = (window as any).ground;
-    const engine = (window as any).engine;
-
-
+  
     const interval = setInterval(() => {
       seconds -= 1;
       if (seconds > 0) {
         setCountdown(seconds);
       } else {
         clearInterval(interval);
-        setCountdown(null); // hide countdown
+        setCountdown(null);
         const rocket = (window as any).rocket;
-    setShowFlame(true);
-
-    // Turn it off after ~500ms (fake burn duration)
-    setTimeout(() => setShowFlame(false), 500);
-    if (!launched) {
-      Matter.Body.applyForce(rocket, rocket.position, {
-        x: 0,
-        y: -thrust / mass
-      });
-      setLaunched(true);
-      if(Matter.Collision.collides(rocket, ground) != null){
-        setLaunched(false);
-        
+        setLaunched(true);
+        setShowFlame(true);
+        isThrusting.current = true;
+  
+        setTimeout(() => {
+          setShowFlame(false);
+          isThrusting.current = false; // stop thrusting after 1 second
+        }, 1000);
       }
-    }
-
-  }
-}, 1000);
-
-    
+    }, 1000);
   };
 
   return (
@@ -251,43 +225,18 @@ export default function Home() {
             onChange={(e) => setRocketColor(e.target.value)}
             className="mb-4 w-16 h-10 p-1 border border-gray-300 rounded"
           />
-          <label className="mb-2 text-sm font-medium text-gray-700">
-            Adjust Thrust:
-          </label>
-          <input
-            type="range"
-            min="0.01"
-            max="1.00"
-            step="0.01"
-            value={thrust}
-            onChange={(e) => setThrust(parseFloat(e.target.value))}
-            className="mb-4 w-64"
-          />
-          <span className="text-sm text-gray-600 mb-4">
-            {thrust.toFixed(2)} N
-          </span>
-          <label className="mb-2 text-sm font-medium text-gray-700">
-            Adjust Rocket Mass (kg):
-          </label>
-          <input
-            type="number"
-            value={mass}
-            onChange={(e) => setMass(parseFloat(e.target.value))}
-            className="mb-2 w-64"
-          />
-<span className="text-sm text-gray-600 mb-4 block">{mass} kg</span>
-{countdown !== null && (
-  <div className="text-6xl font-bold text-red-600 mb-4 animate-pulse">
-    T-{countdown}
-  </div>
-)}
+        {countdown !== null && (
+          <div className="text-6xl font-bold text-red-600 mb-4 animate-pulse">
+            T-{countdown}
+          </div>
+        )}
 
-      </div>
-{reachedSpace && (
-  <div className="top-10 text-center left-0 right-0 z-50 text-3xl text-yellow-300 font-bold animate-bounce">
-    🛰️ You Reached Space!
-  </div>
-)}
+              </div>
+        {reachedSpace && (
+          <div className="top-10 text-center left-0 right-0 z-50 text-3xl text-yellow-300 font-bold animate-bounce">
+            🛰️ You Reached Space!
+          </div>
+        )}
       <div ref={sceneRef} className="border border-gray-400 rounded" />
           {showFlame && (
       <img
@@ -296,7 +245,7 @@ export default function Home() {
         style={{
           position: "absolute",
           left: rocketPosition.x + 535,
-          top: rocketPosition.y + 500,
+          top: rocketPosition.y + 375,
           width: 30,
           height: 50,
           pointerEvents: "none",

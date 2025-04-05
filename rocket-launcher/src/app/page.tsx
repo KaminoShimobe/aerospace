@@ -27,6 +27,8 @@ export default function Home() {
   const [showFlame, setShowFlame] = useState(false); //use of fire
   const [rocketPosition, setRocketPosition] = useState({ x: 0, y: 0 }); //use of rocket location
   const [mass, setMass] = useState(5); // default in kilograms
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [reachedSpace, setReachedSpace] = useState(false);
 
 
   //tint image
@@ -100,7 +102,13 @@ export default function Home() {
       },
     });
 
-    Matter.World.add(engine.world, [rocket, ground]);
+    const ceiling = Matter.Bodies.rectangle(400, 0, 800, 20, {
+      label: "ceiling",
+      isStatic: true,
+      render: { visible: false } // or show if you want
+    });
+
+    Matter.World.add(engine.world, [rocket, ground, ceiling]);
     Matter.Runner.run(engine);
     Matter.Render.run(render);
 
@@ -109,7 +117,21 @@ export default function Home() {
     (window as any).ground = ground;
     (window as any).engine = engine;
 
+    Matter.Events.on(engine, "collisionStart", (event) => {
+      event.pairs.forEach((pair) => {
+        const labels = [pair.bodyA.label, pair.bodyB.label];
+        if (labels.includes("rocket") && labels.includes("ceiling")) {
+          setReachedSpace(true);
     
+          //Optional: stop movement
+          const rocket = (window as any).rocket;
+          Matter.Body.setVelocity(rocket, { x: 0, y: 0 });
+    
+          // Optional: change background to "space"
+          document.body.style.background = "linear-gradient(#000011, #000000)";
+        }
+      });
+    });
 
       Matter.Events.on(engine, "afterUpdate", () => {
         const rocket = (window as any).rocket;
@@ -153,11 +175,31 @@ export default function Home() {
   };
   }, [rocketColor]);
 
+  const resetSimulation = () => {
+    setReachedSpace(false);
+    // reset rocket position, etc.
+  };
+
   const handleLaunch = () => {
+    if (launched || countdown !== null) return; // prevent double clicking
+
+    let seconds = 5;
+    setCountdown(seconds);
+
+
     const rocket = (window as any).rocket;
     const ground = (window as any).ground;
     const engine = (window as any).engine;
 
+
+    const interval = setInterval(() => {
+      seconds -= 1;
+      if (seconds > 0) {
+        setCountdown(seconds);
+      } else {
+        clearInterval(interval);
+        setCountdown(null); // hide countdown
+        const rocket = (window as any).rocket;
     setShowFlame(true);
 
     // Turn it off after ~500ms (fake burn duration)
@@ -170,8 +212,12 @@ export default function Home() {
       setLaunched(true);
       if(Matter.Collision.collides(rocket, ground) != null){
         setLaunched(false);
+        
       }
     }
+
+  }
+}, 1000);
 
     
   };
@@ -183,11 +229,18 @@ export default function Home() {
       <p className="mb-4 text-center max-w-xl">
         Click the button below to launch the rocket! This demo helps you learn about the four forces of flight: thrust, drag, lift, and gravity.
       </p>
+      <div className="grid grid-flow-col grid-rows-3 gap-4">
       <button
         onClick={handleLaunch}
-        className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded mb-4"
+        className="col-span-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded mb-4"
       >
         Launch Rocket
+      </button>
+      <button
+        onClick={resetSimulation}
+        className="col-span-2 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded mb-4"
+      >
+        Reset Simulation
       </button>
           <label className="mb-2 text-sm font-medium text-gray-700">
             Pick your rocket color:
@@ -223,6 +276,18 @@ export default function Home() {
             className="mb-2 w-64"
           />
 <span className="text-sm text-gray-600 mb-4 block">{mass} kg</span>
+{countdown !== null && (
+  <div className="text-6xl font-bold text-red-600 mb-4 animate-pulse">
+    T-{countdown}
+  </div>
+)}
+
+      </div>
+{reachedSpace && (
+  <div className="top-10 text-center left-0 right-0 z-50 text-3xl text-yellow-300 font-bold animate-bounce">
+    🛰️ You Reached Space!
+  </div>
+)}
       <div ref={sceneRef} className="border border-gray-400 rounded" />
           {showFlame && (
       <img
